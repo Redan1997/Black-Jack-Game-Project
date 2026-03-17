@@ -68,4 +68,5 @@ int want_to_play(void);
 void return_hand_to_deck(CardList *deck,CardList*handToReturn);
 int Hit_or_Stand_Handler(void);
 void print_hand(const CardList *hand,const char* user,const int newLine);
+int have_ace(const CardList *hand);
 #endif /* BLACK_JACK_GAME_H */
