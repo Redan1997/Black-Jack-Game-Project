@@ -1,58 +1,34 @@
 #include "Black-Jack Game.h"
 
-const char *RANK_NAMES[] = {//size of 14 to use rank value as index
+const char *const RANK_NAMES[] = {//size of 14 to use rank value as index
     "", "Ace", "2", "3", "4", "5", "6", "7",//add "" for index 0
     "8", "9", "10", "Jack", "Queen", "King"
 };
-const char *SUIT_NAMES[] = {//size of 8 to use suit value as index
+const char *const SUIT_NAMES[] = {//size of 8 to use suit value as index
     "", "Hearts", "Clubs", "", "Diamond", "", "", "", "Spades"//skip index becuse suit is muilty of 2 (1,2,4,8)
 };
-
-int get_suit(const Card *card){
-    int ret=(card->data & 0xF); // Masking to get the card value (1-15) 0xf=00001111 (get first byte from right)
-    if(ret!=0x1 && ret!=0x2 && ret!=0x4 && ret!=0x8){
-        fprintf(stderr, "Invalid card type: %d\n", card->data & 0xf);
-        exit(EXIT_FAILURE);
-    }
-    return ret;
-
-}
-
-int get_rank(const Card *card){
-    int ret=card->data >> 4; // Shifting to get the card rank (1-13) (get socond byte data 1111xxxx)
-    if(ret<1 || ret>13){
-        fprintf(stderr, "Invalid card rank: %d\n", ret);
-        exit(EXIT_FAILURE);
-    }
-    return ret;
-}
-int get_card_value(const Card *card){
-    int value=get_rank(card);
-    if(value>10)//if picture card (J Q K)
-        return 10;
-    return value;
-}
 
 void init_cardList(CardList *cardlist){
     cardlist->head = NULL;
     cardlist->size = 0;
 }
 
-Card *card_new(int rank, int suit){//allocation mem (free is in clear_cardList)
+Card *card_new(const int rank, const int suit){//allocation mem (free is in clear_cardList)
     Card *newCard;
     if(!(newCard=malloc(sizeof(Card)))){
         fprintf(stderr, "Memory allocation failed for new card\n");
         exit(EXIT_FAILURE);
     }
-    newCard->data = (rank << 4) | suit;
+    newCard->data = (uint8_t)((rank << 4) | suit);
     newCard->next = NULL;
     return newCard;
 }
 
-void card_push(CardList *cardlist, Card *card){
-    card->next=cardlist->head;                              //push to head
-    cardlist->head=card;
-    cardlist->size++;
+Card *card_draw(CardList *deck, CardList *cardlist){
+    const size_t random_index = ((size_t)rand() % (deck->size));             //get random from 0 - sizeof deck
+    Card * cardFromDeck=card_remove_at(deck,random_index);  //remove card from deck
+    card_push(cardlist,cardFromDeck);                       //add to hand
+    return cardFromDeck;
 }
 
 Card *card_remove_at(CardList *cardlist, const size_t index){
@@ -80,15 +56,15 @@ Card *card_remove_at(CardList *cardlist, const size_t index){
     cardlist->size--;
     return removed;
 }
-Card *card_draw(CardList *deck, CardList *cardlist){
-    size_t random_index = (rand() % (deck->size));             //get random from 0 - sizeof deck
-    Card * cardFromDeck=card_remove_at(deck,random_index);  //remove card from deck
-    card_push(cardlist,cardFromDeck);                       //add to hand
-    return cardFromDeck;
+
+void card_push(CardList *cardlist, Card *card){
+    card->next=cardlist->head;                              //push to head
+    cardlist->head=card;
+    cardlist->size++;
 }
 
 void fill_deck(CardList *deck){
-    int suits[]={0x1,0x2,0x4,0x8};
+    const int suits[]={0x1,0x2,0x4,0x8};
     for (int i = 0; i < 4; i++)
     {
         for (int j = 1; j < 14; j++)//13 card from ace to king
@@ -109,33 +85,46 @@ void clear_cardList(CardList *cardlist){//clear and free list of cards
     cardlist->size=0;
 }
 
-/*              handlers            */
+void return_hand_to_deck(CardList *deck,CardList*handToReturn){
+    Card *card=handToReturn->head,*nxt;
+        while (card)
+        {
+            nxt=card->next;
+            card_push(deck,card);
+            card=nxt;
+        }
+        handToReturn->head=NULL;
+        handToReturn->size=0;
+}
+
+/*              game phases            */
 int betting_handler(GameState *game){
     printf("------------------------Betting------------------------\n");//----------
     printf("player have %d$ | currenly pot is %d$\n",game->cash,game->pot);
     if(game->cash<10 && !(game->pot))
         return 0;
-    int pot=readPotHandler(game->cash,game->pot);
+    const int pot=readPotHandler(game->cash,game->pot);
     game->pot+=pot;
     game->cash-=pot;
     printf("pot now is %d$ and player cash now %d$\n",game->pot,game->cash);
     return game->pot;
 }
+
 void initial_Deal_Handler(GameState *game){
     printf("------------------------Dealing------------------------\n");
     card_draw(&game->deck,&game->player_hand);
     card_draw(&game->deck,&game->dealer_hand);
     card_draw(&game->deck,&game->player_hand);
     card_draw(&game->deck,&game->dealer_hand);
-    //print_hand(&game->dealer_hand,"dealer: ",1);//for debug
     printf("Dealer: ");
     print_card(game->dealer_hand.head);
     printf(", ????????\n");
     print_hand(&game->player_hand,"Player",SPACE);
-    printf("| value:%d\n",hand_value(&game->player_hand));
+    printf("| value:%d\n",get_hand_value(&game->player_hand));
 }
+
 int Black_Jack_Check(GameState *game){
-    int player_hand_value=hand_value(&(game->player_hand));
+    const int player_hand_value=get_hand_value(&(game->player_hand));
     if(player_hand_value==21){
         int earning = game->pot + (game->pot*3/2);
         game->cash+=earning;
@@ -145,6 +134,7 @@ int Black_Jack_Check(GameState *game){
     }
     return 0;
 }
+
 int Reset_Cards(GameState *game){
     return_hand_to_deck(&game->deck,&game->player_hand);
     return_hand_to_deck(&game->deck,&game->dealer_hand);
@@ -154,14 +144,15 @@ int Reset_Cards(GameState *game){
     }
     return want_to_play();
 }
+
 int Hit_or_Stand(GameState *game){
     printf("---------------------Hit or Stand?---------------------\n");
     while(1){
         int input=Hit_or_Stand_Handler();
         if(input){
             card_draw(&game->deck,&game->player_hand);
-            print_hand(&game->player_hand,"Player: ",SPACE);
-            int handValue=hand_value(&game->player_hand);
+            print_hand(&game->player_hand,"Player",SPACE);
+            const int handValue=get_hand_value(&game->player_hand);
             printf("| value:%d\n",handValue);
             if(handValue>21){
                 printf("Busted player lost %d$\n",game->pot);
@@ -174,26 +165,26 @@ int Hit_or_Stand(GameState *game){
         else return 1;//continue to dealer draw phase
     }
 }
+
 void dealer_draw_phase(GameState *game){
     printf("------------------Dealer turn to draw------------------\n");
-    int playerHandValue=hand_value(&game->player_hand);
-    int dealerHandValue=hand_value(&game->dealer_hand);
-    print_hand(&game->player_hand,"Player: ",SPACE);
+    const int playerHandValue=get_hand_value(&game->player_hand);
+    int dealerHandValue=get_hand_value(&game->dealer_hand);
+    print_hand(&game->player_hand,"Player",SPACE);
     printf("| value:%d\n",playerHandValue);
-    print_hand(&game->dealer_hand,"Dealer: ",NONE);
+    print_hand(&game->dealer_hand,"Dealer",NONE);
     if(dealerHandValue>playerHandValue){
         printf(" | value:%d\n",dealerHandValue);
         printf("Dealer wins!!\n");
         game->pot=0;
         return;
     }
-    ///there problem when tie at 17
-    //while((dealerHandValue<playerHandValue)&&((dealerHandValue<17)||have_ace(&game->dealer_hand))){ delete check task todo
+    //while((dealerHandValue<playerHandValue)&&((dealerHandValue<17)||have_ace(&game->dealer_hand))){ drew at 17 when have ace
     while(dealerHandValue<playerHandValue && dealerHandValue<17){
         Card* newCard=card_draw(&game->deck,&game->dealer_hand);
         printf(", ");
         print_card(newCard);
-        dealerHandValue=hand_value(&game->dealer_hand);
+        dealerHandValue=get_hand_value(&game->dealer_hand);
         }
     if((dealerHandValue>21)){
         printf(" | value:%d\n",dealerHandValue);
@@ -220,8 +211,9 @@ void dealer_draw_phase(GameState *game){
     printf("---------------------End of round----------------------\n");
 }
 
-/*          input/displayer handlers          */
-int readPotHandler(int p_cash,int pot){
+
+/*          getters/input/displayer handlers          */
+int readPotHandler(const int p_cash,const int pot){//put const
     while (1)
     {
         if(!pot && p_cash<10)
@@ -265,34 +257,43 @@ int readPotHandler(int p_cash,int pot){
         else return bet;
     }
 }
-void print_card(const Card *card){
-    printf("%s of %s", RANK_NAMES[get_rank(card)], SUIT_NAMES[get_suit(card)]);
-}
-int hand_value(const CardList * hand){
-    int ace_flag=0;
-    Card *currCard=hand->head;
-    int value=0;
-    while(currCard){
-        value+=get_card_value(currCard);
-        if(get_rank(currCard)==1){
-            ace_flag=1;
-        }
-        currCard=currCard->next;
-    }
-    if(ace_flag&&value+10<=21)
-        value+=10;
-    return value;
-}
-void return_hand_to_deck(CardList *deck,CardList*handToReturn){
-    Card *card=handToReturn->head,*nxt;
-        while (card)
+
+int want_to_play(void){
+    char input[32];
+    printf("Do you want to continue gambling? Enter yes or no: ");
+    while (1)
+    {
+        int status = scanf(" %31s", input);
+
+        // 1. Check for EOF
+        if(status == EOF)
         {
-            nxt=card->next;
-            card_push(deck,card);
-            card=nxt;
+            printf("\nInput stream ended. Exiting.\n");
+            exit(EXIT_SUCCESS);
         }
-        handToReturn->head=NULL;
-        handToReturn->size=0;
+
+        // 2. Check for invalid characters
+        if(status < 1)
+        {
+            printf("Error: Could not read input. Enter yes/no, y/n, or 1/0: ");
+            while (getchar() != '\n' && !feof(stdin));
+            continue;
+        }
+
+        // 3. Convert to lowercase
+        for(int i = 0; input[i]; i++)
+            input[i] = (char)tolower((unsigned char)input[i]);
+
+        // 4. Validate with strcmp
+        if(strcmp(input, "yes") == 0 || strcmp(input, "y") == 0 || strcmp(input, "1") == 0){
+            puts("\033[2J\033[H");//clean screen for next round
+            return 1;
+        }
+        else if(strcmp(input, "no") == 0 || strcmp(input, "n") == 0 || strcmp(input, "0") == 0)
+            return 0;
+        else
+            printf("Error: Invalid input '%s'. Enter yes/no, y/n, or 1/0: ", input);
+    }
 }
 
 int Hit_or_Stand_Handler(void){
@@ -334,44 +335,53 @@ int Hit_or_Stand_Handler(void){
             printf("Error: Invalid input '%s'. Enter hit or stand: ", input);
     }
 }
-int want_to_play(void){
-    char input[32];
-    printf("Do you want to continue gambling? Enter yes or no: ");
-    while (1)
-    {
-        int status = scanf(" %31s", input);
 
-        // 1. Check for EOF
-        if(status == EOF)
-        {
-            printf("\nInput stream ended. Exiting.\n");
-            exit(EXIT_SUCCESS);
-        }
-
-        // 2. Check for invalid characters
-        if(status < 1)
-        {
-            printf("Error: Could not read input. Enter yes/no, y/n, or 1/0: ");
-            while (getchar() != '\n' && !feof(stdin));
-            continue;
-        }
-
-        // 3. Convert to lowercase
-        for(int i = 0; input[i]; i++)
-            input[i] = (char)tolower((unsigned char)input[i]);
-
-        // 4. Validate with strcmp
-        if(strcmp(input, "yes") == 0 || strcmp(input, "y") == 0 || strcmp(input, "1") == 0){
-            puts("\033[2J\033[H");//clean screen for next round
-            return 1;
-        }
-        else if(strcmp(input, "no") == 0 || strcmp(input, "n") == 0 || strcmp(input, "0") == 0)
-            return 0;
-        else
-            printf("Error: Invalid input '%s'. Enter yes/no, y/n, or 1/0: ", input);
+int get_suit(const Card *card){
+    int ret=(card->data & 0xF); // Masking to get the card value (1-15) 0xf=00001111 (get first byte from right)
+    if(ret!=0x1 && ret!=0x2 && ret!=0x4 && ret!=0x8){
+        fprintf(stderr, "Invalid card type: %d\n", card->data & 0xf);
+        exit(EXIT_FAILURE);
     }
+    return ret;
 }
-void print_hand(const CardList *hand,const char* user,const int newLine){
+
+int get_rank(const Card *card){
+    int ret=card->data >> 4; // Shifting to get the card rank (1-13) (get socond byte data 1111xxxx)
+    if(ret<1 || ret>13){
+        fprintf(stderr, "Invalid card rank: %d\n", ret);
+        exit(EXIT_FAILURE);
+    }
+    return ret;
+}
+
+int get_card_value(const Card *card){
+    int value=get_rank(card);
+    if(value>10)//if picture card (J Q K)
+        return 10;
+    return value;
+}
+
+int get_hand_value(const CardList * hand){
+    int ace_flag=0;
+    Card *currCard=hand->head;
+    int value=0;
+    while(currCard){
+        value+=get_card_value(currCard);
+        if(get_rank(currCard)==1){
+            ace_flag=1;
+        }
+        currCard=currCard->next;
+    }
+    if(ace_flag&&value+10<=21)
+        value+=10;
+    return value;
+}
+
+void print_card(const Card *card){
+    printf("%s of %s", RANK_NAMES[get_rank(card)], SUIT_NAMES[get_suit(card)]);
+}
+
+void print_hand(const CardList *hand,const char* user,const int space){
     Card * card=hand->head;
     if (card == NULL) {
         return;
@@ -383,20 +393,9 @@ void print_hand(const CardList *hand,const char* user,const int newLine){
         card=card->next;
     }
     print_card(card);
-    if(newLine==1)
-        printf("\n");
-    else if(newLine==0)
-        printf(", ");
-    else if(newLine==2)
-        printf(" ");
+    if(space==SPACE)
+        printf(" ");//else print nothing
 }
-int have_ace(const CardList *hand){
-    Card*curr=hand->head;
-    while(curr){
-        if(get_rank(curr)==1)
-            return 1;
-        curr=curr->next;
-    }
-    return 0;
-}
+
+
 //end of file

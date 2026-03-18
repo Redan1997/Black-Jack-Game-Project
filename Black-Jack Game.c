@@ -1,32 +1,28 @@
 /*written by: Redan */
 #include "Black-Jack Game.h"
-
-
 int main(void) {
-    puts("\033[2J\033[H");
+    puts("\033[2J\033[H");//clean screen for better user experience
     GameState game;
-    int flag=1;
-    /*       Game Initialization        */
+    int continueFlag=1;
     srand((unsigned int)time(NULL));
+
     init_cardList(&game.deck);
     fill_deck(&game.deck);
     init_cardList(&game.dealer_hand);
     init_cardList(&game.player_hand);
     game.cash=1000;
     game.pot=0;
-    while (flag)
-    {
-        /*      betting     */
+
+    while (continueFlag){
         if(!betting_handler(&game))
             break;
-
-        /*      dealing     */
         initial_Deal_Handler(&game);
         if(!Black_Jack_Check(&game))
             if(Hit_or_Stand(&game))
                 dealer_draw_phase(&game);
-        flag=Reset_Cards(&game);
+        continueFlag=Reset_Cards(&game);
     }
+
     clear_cardList(&game.dealer_hand);
     clear_cardList(&game.player_hand);
     clear_cardList(&game.deck);
