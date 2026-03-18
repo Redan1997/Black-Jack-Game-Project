@@ -2,28 +2,17 @@
 #define BLACK_JACK_GAME_H
 /*written by: Redan */
 #include <stdio.h>
-//#include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
-// typedef enum {
-//     ACE = 1,TWO = 2,THREE = 3,FOUR = 4,FIVE = 5, 
-//     SIX = 6,SEVEN = 7,EIGHT = 8,NINE = 9,
-//     TEN = 10,JACK = 11,QUEEN = 12,KING = 13
-// } CardRank;
-
-// typedef enum {
-//     HEARTS = 0x01,CLUBS = 0x02,
-//     DIAMONDS = 0x04,SPADES = 0x08
-// } CardSuit;
 
 typedef struct Card{
     uint8_t data;
     struct Card *next;
-} Card;//problem is
+} Card;
 
 typedef struct {
     Card *head;
@@ -37,6 +26,8 @@ typedef struct {
     int      cash;
     int      pot;
 } GameState;
+
+typedef enum {COMMA=0, NEWLINE=1, SPACE=2,NONE=3} PrintFormat;
 
 /*Initializes cardlist to NULL and zero (assumes it's doesn't contain any card nodes)*/
 void init_cardList(CardList *cardlist);
@@ -57,9 +48,11 @@ void card_push(CardList *cardlist, Card *card);
 int betting_handler(GameState *game);//phase 1
 void initial_Deal_Handler(GameState *game);//phase 2
 int Black_Jack_Check(GameState *game);//phase 3
-int Reset_Cards(GameState *game);
 int Hit_or_Stand(GameState *game);//4
+int Reset_Cards(GameState *game);
 void dealer_draw_phase(GameState *game);
+
+
 /*input handlers*/
 int readPotHandler(int p_cash,int pot);
 void print_card(const Card *card);

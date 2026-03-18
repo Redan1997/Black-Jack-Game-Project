@@ -9,38 +9,22 @@ const char *SUIT_NAMES[] = {//size of 8 to use suit value as index
 };
 
 int get_suit(const Card *card){
-    switch (card->data & 0xF) { // Masking to get the card value (1-15) 0xf=00001111 (get first byte from right)
-        case 1: return 1;
-        case 2: return 2;
-        case 4: return 4;
-        case 8: return 8;
-        default: {
-            printf("Invalid card type: %d\n", card->data & 0xf);
-            exit(EXIT_FAILURE);
-        }
+    int ret=(card->data & 0xF); // Masking to get the card value (1-15) 0xf=00001111 (get first byte from right)
+    if(ret!=0x1 && ret!=0x2 && ret!=0x4 && ret!=0x8){
+        fprintf(stderr, "Invalid card type: %d\n", card->data & 0xf);
+        exit(EXIT_FAILURE);
     }
+    return ret;
+
 }
 
 int get_rank(const Card *card){
-    switch (card->data >> 4) { // Shifting to get the card rank (1-13) (get socond byte data 1111xxxx)
-        case 1: return 1;
-        case 2: return 2;
-        case 3: return 3;
-        case 4: return 4;
-        case 5: return 5;
-        case 6: return 6;
-        case 7: return 7;
-        case 8: return 8;
-        case 9: return 9;
-        case 10: return 10;
-        case 11: return 11;
-        case 12: return 12;
-        case 13: return 13;
-        default: {
-            printf("Invalid card rank: %d\n", card->data >> 4);
-            exit(EXIT_FAILURE);
-        }
+    int ret=card->data >> 4; // Shifting to get the card rank (1-13) (get socond byte data 1111xxxx)
+    if(ret<1 || ret>13){
+        fprintf(stderr, "Invalid card rank: %d\n", ret);
+        exit(EXIT_FAILURE);
     }
+    return ret;
 }
 int get_card_value(const Card *card){
     int value=get_rank(card);
@@ -57,7 +41,7 @@ void init_cardList(CardList *cardlist){
 Card *card_new(int rank, int suit){//allocation mem (free is in clear_cardList)
     Card *newCard;
     if(!(newCard=malloc(sizeof(Card)))){
-        printf("Memory allocation failed for new card\n");//TODO fprintf to stderr
+        fprintf(stderr, "Memory allocation failed for new card\n");
         exit(EXIT_FAILURE);
     }
     newCard->data = (rank << 4) | suit;
@@ -97,7 +81,7 @@ Card *card_remove_at(CardList *cardlist, const size_t index){
     return removed;
 }
 Card *card_draw(CardList *deck, CardList *cardlist){
-    int random_index = (rand() % (deck->size));             //get random from 0 - sizeof deck
+    size_t random_index = (rand() % (deck->size));             //get random from 0 - sizeof deck
     Card * cardFromDeck=card_remove_at(deck,random_index);  //remove card from deck
     card_push(cardlist,cardFromDeck);                       //add to hand
     return cardFromDeck;
@@ -125,21 +109,20 @@ void clear_cardList(CardList *cardlist){//clear and free list of cards
     cardlist->size=0;
 }
 
-
 /*              handlers            */
 int betting_handler(GameState *game){
-    printf("--------------------Betting--------------------\n");//----------
+    printf("------------------------Betting------------------------\n");//----------
     printf("player have %d$ | currenly pot is %d$\n",game->cash,game->pot);
     if(game->cash<10 && !(game->pot))
         return 0;
     int pot=readPotHandler(game->cash,game->pot);
     game->pot+=pot;
     game->cash-=pot;
-    printf("Player bet %d$\n",game->pot);
+    printf("pot now is %d$ and player cash now %d$\n",game->pot,game->cash);
     return game->pot;
 }
 void initial_Deal_Handler(GameState *game){
-    printf("--------------------Dealing--------------------\n");
+    printf("------------------------Dealing------------------------\n");
     card_draw(&game->deck,&game->player_hand);
     card_draw(&game->deck,&game->dealer_hand);
     card_draw(&game->deck,&game->player_hand);
@@ -148,14 +131,13 @@ void initial_Deal_Handler(GameState *game){
     printf("Dealer: ");
     print_card(game->dealer_hand.head);
     printf(", ????????\n");
-    print_hand(&game->player_hand,"Player: ",2);
+    print_hand(&game->player_hand,"Player",SPACE);
     printf("| value:%d\n",hand_value(&game->player_hand));
-    puts("");
 }
 int Black_Jack_Check(GameState *game){
     int player_hand_value=hand_value(&(game->player_hand));
     if(player_hand_value==21){
-        int earning = game->pot *1.5;
+        int earning = game->pot + (game->pot*3/2);
         game->cash+=earning;
         game->pot=0;
         printf("Player won %d$ and now have %d$\n",earning,game->cash);
@@ -173,12 +155,12 @@ int Reset_Cards(GameState *game){
     return want_to_play();
 }
 int Hit_or_Stand(GameState *game){
-    printf("--------------------Hit or Stand?--------------------\n");
+    printf("---------------------Hit or Stand?---------------------\n");
     while(1){
         int input=Hit_or_Stand_Handler();
         if(input){
             card_draw(&game->deck,&game->player_hand);
-            print_hand(&game->player_hand,"Player: ",2);
+            print_hand(&game->player_hand,"Player: ",SPACE);
             int handValue=hand_value(&game->player_hand);
             printf("| value:%d\n",handValue);
             if(handValue>21){
@@ -193,12 +175,12 @@ int Hit_or_Stand(GameState *game){
     }
 }
 void dealer_draw_phase(GameState *game){
-    printf("--------------------Dealer turn to draw--------------------\n");
+    printf("------------------Dealer turn to draw------------------\n");
     int playerHandValue=hand_value(&game->player_hand);
     int dealerHandValue=hand_value(&game->dealer_hand);
-    print_hand(&game->player_hand,"Player: ",2);
+    print_hand(&game->player_hand,"Player: ",SPACE);
     printf("| value:%d\n",playerHandValue);
-    print_hand(&game->dealer_hand,"Dealer: ",3);
+    print_hand(&game->dealer_hand,"Dealer: ",NONE);
     if(dealerHandValue>playerHandValue){
         printf(" | value:%d\n",dealerHandValue);
         printf("Dealer wins!!\n");
@@ -206,15 +188,12 @@ void dealer_draw_phase(GameState *game){
         return;
     }
     ///there problem when tie at 17
-    while((dealerHandValue<playerHandValue)&&((dealerHandValue<17)||have_ace(&game->dealer_hand))){
+    //while((dealerHandValue<playerHandValue)&&((dealerHandValue<17)||have_ace(&game->dealer_hand))){ delete check task todo
+    while(dealerHandValue<playerHandValue && dealerHandValue<17){
         Card* newCard=card_draw(&game->deck,&game->dealer_hand);
         printf(", ");
         print_card(newCard);
         dealerHandValue=hand_value(&game->dealer_hand);
-        // if(!((dealerHandValue<playerHandValue)&&(dealerHandValue<17||have_ace(&game->dealer_hand))))
-        // {
-        //     printf(" | value:%d\n",dealerHandValue);
-        // }
         }
     if((dealerHandValue>21)){
         printf(" | value:%d\n",dealerHandValue);
@@ -238,7 +217,7 @@ void dealer_draw_phase(GameState *game){
         printf("Player won %d$ and now have %d$\n",game->pot*2,game->cash);
         game->pot=0;
     }
-
+    printf("---------------------End of round----------------------\n");
 }
 
 /*          input/displayer handlers          */
@@ -254,8 +233,8 @@ int readPotHandler(int p_cash,int pot){
         // 1. Check for EOF
         if (status == EOF)
         {
-            printf("\nInput EOF line 152 ended. Exiting.\n");//check line at end
-            exit(EXIT_FAILURE);
+            printf("\nInput EOF. Exiting.\n");//check line at end
+            exit(EXIT_SUCCESS);
         }
         
         // 2. Check for invalid characters
@@ -267,15 +246,16 @@ int readPotHandler(int p_cash,int pot){
         }
         
         // 3. Check for decimals/junk after the second number
-        char next = getchar();
+        char next = (char)getchar();
         if (next != '\n' && next != EOF)
         {
             printf("Error: Decimals or extra characters detected.\n");
             while (getchar() != '\n');
             continue;
         }
-
-        if(bet<10 && !pot)//pot is 0
+        if(bet<0)
+            printf("Bet cannot be negative\n");//new check been forgotten   delete
+        else if(bet<10 && !pot)//pot is 0
             printf("You must put at least 10$ to start\n");
         else if(bet > p_cash)
             printf("You dont have that money\n");
@@ -314,43 +294,7 @@ void return_hand_to_deck(CardList *deck,CardList*handToReturn){
         handToReturn->head=NULL;
         handToReturn->size=0;
 }
-int want_to_playold(void){
-    puts("Do you want to continue gambling write 1 for continue 0 for no?: ");
-    int a;
-    while (1)
-    {
-        int status = scanf(" %d", &a);
-        
-        // 1. Check for EOF
-        if (status == EOF)
-        {
-            printf("\nInput stream ended. Exiting.\n");
-            exit(EXIT_SUCCESS);
-        }
-        
-        // 2. Check for invalid characters
-        if (status < 1) 
-        {
-            printf("Error: Please enter a valid integer (0 or 1).\n");
-            while (getchar() != '\n'); 
-            continue; 
-        }
-        
-        // 3. Check for decimals/junk after the second number
-        char extra = getchar();
-        if (extra != '\n' && extra != EOF)
-        {
-            printf("Error: extra characters detected.\n");
-            while (getchar() != '\n');
-            continue;
-        }
-        if(a!=1&&a!=0)
-            printf("please enter 1 for yes and 0 for no: ");
-        else
-            break;
-    }
-    return a;
-}
+
 int Hit_or_Stand_Handler(void){
     char input[32];
     printf("Do you want to hit or stand: ");
@@ -375,7 +319,7 @@ int Hit_or_Stand_Handler(void){
 
         // 3. Convert to lowercase
         for(int i = 0; input[i]; i++)
-            input[i] = tolower((unsigned char)input[i]);
+            input[i] = (char)tolower((unsigned char)input[i]);
 
         // 4. Validate with strcmp
         if(strcmp(input, "hit") == 0 
@@ -414,11 +358,13 @@ int want_to_play(void){
 
         // 3. Convert to lowercase
         for(int i = 0; input[i]; i++)
-            input[i] = tolower((unsigned char)input[i]);
+            input[i] = (char)tolower((unsigned char)input[i]);
 
         // 4. Validate with strcmp
-        if(strcmp(input, "yes") == 0 || strcmp(input, "y") == 0 || strcmp(input, "1") == 0)
+        if(strcmp(input, "yes") == 0 || strcmp(input, "y") == 0 || strcmp(input, "1") == 0){
+            puts("\033[2J\033[H");//clean screen for next round
             return 1;
+        }
         else if(strcmp(input, "no") == 0 || strcmp(input, "n") == 0 || strcmp(input, "0") == 0)
             return 0;
         else

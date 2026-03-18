@@ -7,7 +7,7 @@ int main(void) {
     GameState game;
     int flag=1;
     /*       Game Initialization        */
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     init_cardList(&game.deck);
     fill_deck(&game.deck);
     init_cardList(&game.dealer_hand);
